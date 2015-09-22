@@ -18,7 +18,7 @@ INSTALL
 
 First install nginx, mongodb, gearman and nodejs.
 
-Then checkout this repository (later, you'll be ably to just run npm install -g mows).
+Then checkout this repository (later, you'll be ably to just run npm install -g mowsjs).
 
 In the repository root, run these:
 

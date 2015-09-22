@@ -1,5 +1,5 @@
 {
-  "name": "mows",
+  "name": "mowsjs",
   "version": "0.0.1",
   "description": "A data synchronization event engine using nginx, express, mongodb and gearman",
   "keywords": [
@@ -20,18 +20,16 @@
     "email": "o@rsence.org",
     "url": "https://github.com/jammi"
   },
-  "main": "./lib/mows/mows.js",
+  "main": "./test/run-tests.coffee",
   "files": [
     "README.md",
-    "LICENSE.txt",
-    "doc",
-    "lib"
+    "LICENSE.txt"
   ],
-  "directories": {
-    "lib": "lib/mows/",
-    "doc": "doc/"
-  },
-  "repository": "github:jammi/dist",
+  "directories": [
+    "src",
+    "test"
+  ],
+  "repository": "github:jammi/mows",
   "scripts": {
     "build": "./build.coffee",
     "test": "./test/run-tests.coffee"
@@ -52,6 +50,5 @@
   },
   "engines": {
     "node": ">=4.1.0"
-  },
-  "private": true
+  }
 }
