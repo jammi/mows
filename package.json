@@ -1,0 +1,57 @@
+{
+  "name": "mows",
+  "version": "0.0.1",
+  "description": "A data synchronization event engine using nginx, express, mongodb and gearman",
+  "keywords": [
+    "JSON",
+    "HTTP",
+    "Resource",
+    "Synchronization",
+    "MongoDB",
+    "Gearman"
+  ],
+  "bugs": {
+    "url": "https://github.com/jammi/mows/issues",
+    "email": "mows@rsence.org"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Juha-Jarmo Heinonen",
+    "email": "o@rsence.org",
+    "url": "https://github.com/jammi"
+  },
+  "main": "./lib/mows/mows.js",
+  "files": [
+    "README.md",
+    "LICENSE.txt",
+    "doc",
+    "lib"
+  ],
+  "directories": {
+    "lib": "lib/mows/",
+    "doc": "doc/"
+  },
+  "repository": "github:jammi/dist",
+  "scripts": {
+    "build": "./build.coffee",
+    "test": "./test/run-tests.coffee"
+  },
+  "dependencies": {
+    "body-parser": ">=1.13.1",
+    "express": ">=4.12.4",
+    "gearmanode": "^0.9.0",
+    "mongodb": "^2.0.42",
+    "randomstring": ">=1.0.6"
+  },
+  "devDependencies": {
+    "chai": "^3.2.0",
+    "coffee-script": ">=1.9.3",
+    "coffeelint": "^1.12.1",
+    "mocha": "^2.3.2",
+    "uglify-js": ">=2.4.23"
+  },
+  "engines": {
+    "node": ">=4.1.0"
+  },
+  "private": true
+}
