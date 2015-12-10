@@ -45,4 +45,4 @@ runTests = ->
     console.log 'Test runner error:', e
 
 # runTests()
-setTimeout(runTests, 1000)
+setTimeout(runTests, 1500)

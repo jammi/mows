@@ -5,12 +5,14 @@ gearmanode = require 'gearmanode'
 # Gearmanode defaults to some super-verbose
 # debug logging level, this reduces the
 # amount of its garbage
-gearmanode
-  .Client
-  .logger
-  .transports
-  .console
-  .level = 'none'
+gearmaDebug = true
+unless gearmaDebug
+  gearmanode
+    .Client
+    .logger
+    .transports
+    .console
+    .level = 'none'
 
 module.exports = (config) ->
 
@@ -18,22 +20,35 @@ module.exports = (config) ->
   utf8 = 'utf-8'
 
   initWorker = (name, cb) ->
-    worker = gearmanode.worker({servers})
-    if cb?
-      worker.addFunction name, (job) ->
-        payload = JSON
-          .parse(
-            job
-              .payload
-              .toString(utf8)
-            , utf8
-          )
-        firstArg = {
-          job
-          send: (data) -> job.workComplete(JSON.stringify(data, utf8))
-          progress: (data) -> job.sendWorkData(JSON.stringify(data, utf8))
-        }
-        cb(firstArg, payload)
+    worker = new gearmanode.Worker({servers})
+    if name?
+      if name instanceof Object
+        names = name
+        for name, cb of names
+          addToWorker(worker, name, cb)
+      else if cb?
+        addToWorker(worker, name, cb)
+    worker
+
+
+  addToWorker = (worker, name, cb) ->
+    worker.addFunction name, (job) ->
+      payload = JSON.parse(job.payload.toString(utf8), utf8)
+      send = (data) ->
+        job.workComplete(JSON.stringify(data, utf8))
+      progress = (data) ->
+        job.sendWorkData(JSON.stringify(data, utf8))
+      cb({job, send, progress}, payload)
+    worker
+
+
+  removeFromWorker = (worker, name) ->
+    if typeof name is 'array'
+      names = name
+      for name in names
+        worker.removeFunction(name)
+    else
+      worker.removeFunction(name)
     worker
 
 
@@ -75,13 +90,9 @@ module.exports = (config) ->
   initClient = (name, data, options) ->
 
     new Promise (resolve, reject) ->
-
-      client = gearmanode.client({servers})
-
+      client = new gearmanode.Client({servers})
       job = client.submitJob(name, JSON.stringify(data, utf8))
-
       bindDefaultClientErrors(job, client, reject)
-
       job.on 'complete', ->
         client.close()
         data = job.response.toString(utf8)
@@ -90,42 +101,51 @@ module.exports = (config) ->
         catch e
           reject('JSON parse failed for data: ' + data)
 
-  ###
-  # some gearman reference stuff
+  {
+    worker: initWorker
+    client: initClient
+    initWorker
+    initClient
+    addToWorker
+    removeFromWorker
+  }
 
-  # client reference
-  client = gearmanode.client({servers})
 
-  job = client.submitJob('reverse', 'hello world!', {
-    background: false, toStringEncoding: 'utf-8', priority: 'LOW'})
-  job.on 'workData', (data) ->
-    console.log 'WORK_DATA >>> ' + data
-  job.on 'complete', -> console.log 'RESULT >>> ' + job.response
-  client.close()
+###
+# some gearman reference stuff
 
-  # worker reference:
-  worker = gearmanode.worker({servers})
-  worker.addFunction 'reverse', (job) ->
-    job.sendWorkData('workload: '+job.payload)
-    job.workComplete('not reverse')
+# client reference
+client = gearmanode.client({servers})
 
-  test1 = gearman.worker 'test1', ({send}, data) ->
-    console.log('test1 progress for '+data)
-    setTimeout(send('test1 result'), 1000)
+job = client.submitJob('reverse', 'hello world!', {
+  background: false, toStringEncoding: 'utf-8', priority: 'LOW'})
+job.on 'workData', (data) ->
+  console.log 'WORK_DATA >>> ' + data
+job.on 'complete', -> console.log 'RESULT >>> ' + job.response
+client.close()
 
-  test2 = gearman.worker 'test2', ({send}, data) ->
-    console.log({input: data})
-    send({test: 123, foo: 'bar', input: data})
+# worker reference:
+worker = gearmanode.worker({servers})
+worker.addFunction 'reverse', (job) ->
+  job.sendWorkData('workload: '+job.payload)
+  job.workComplete('not reverse')
 
-  gearman.client('test1', 'testing123').then(
-    (data) -> console.log('result1: ', data)
-    (err) -> console.log('error1: ', err)
-  )
+test1 = gearman.worker 'test1', ({send}, data) ->
+  console.log('test1 progress for '+data)
+  setTimeout(send('test1 result'), 1000)
 
-  gearman.client('test2', {foo: 'testing123'}).then(
-    (data) -> console.log('result1: ', data)
-    (err) -> console.log('error1: ', err)
-  )
-  ###
+test2 = gearman.worker 'test2', ({send}, data) ->
+  console.log({input: data})
+  send({test: 123, foo: 'bar', input: data})
 
-  {worker: initWorker, client: initClient}
+gearman.client('test1', 'testing123').then(
+  (data) -> console.log('result1: ', data)
+  (err) -> console.log('error1: ', err)
+)
+
+gearman.client('test2', {foo: 'testing123'}).then(
+  (data) -> console.log('result1: ', data)
+  (err) -> console.log('error1: ', err)
+)
+###
+

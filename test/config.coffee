@@ -56,8 +56,10 @@ module.exports = ->
     # Key length defines the length of the
     # random part of the key.
     keyLength: 40
-  }
 
+    gearmanServers: config.gearmanServers
+
+  }
 
   {
     config

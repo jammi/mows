@@ -5,10 +5,7 @@ module.exports = (config, mowsConfig) ->
   host = '127.0.0.1'
 
   express = require 'express'
-  bodyParser = require 'body-parser'
-  HttpPost = require '../src/http-post'
-  Session = require '../src/session'
-  Values  = require '../src/values'
+  Broker = require '../src/http-broker'
 
   apps = []
 
@@ -16,22 +13,15 @@ module.exports = (config, mowsConfig) ->
     (->
       port = config.httpBase + i
       app = express()
-      app.use(bodyParser.json())
-      Session(mowsConfig)
-        .then ({auth, close}) ->
-          Values(mowsConfig)
-            .then ({sync}) ->
-              HttpPost(auth, sync, console.log).post
-            .then (post) ->
-              app.post '/x', post
-              app.post '/hello', post
-              server = app.listen port, host, ->
-                console.log "Test server listening at http://#{host}:#{port}"
-              apps.push {app, server}
-            .catch (err) ->
-              console.error('Unable to start values:', err)
+      Broker(mowsConfig, console.error)
+        .then (broker) ->
+          app.use(broker)
+        .then ->
+          server = app.listen port, host, ->
+            console.log "Test server listening at http://#{host}:#{port}"
+          apps.push {app, server}
         .catch (err) ->
-          console.error('Unable to start session:', err)
+          console.error('Unable to start broker:', err)
     )()
 
   apps
