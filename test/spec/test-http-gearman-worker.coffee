@@ -81,9 +81,9 @@ describe 'HTTP client post session handshake tests', ->
       res.on 'error', (err) ->
         done(err)
     req.write(requestBody)
-    req.end()
     req.on 'error', (err) ->
       done(err)
+    req.end()
 
 
   it 'Init worker, then make a http call for it', (done) ->

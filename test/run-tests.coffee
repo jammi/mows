@@ -1,10 +1,6 @@
 #!/usr/bin/env coffee
 'use strict'
 
-process.on 'uncaughtException', (e) ->
-  console.log 'uncaught exception:', e
-  process.exit(1)
-
 {config, mowsConfig, isRunning, childProcs} = require('./config')()
 
 startDeps = ->

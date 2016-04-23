@@ -16,7 +16,7 @@ createAPI = (db, collName) ->
             reject {message: 'MOWS Mongo#insert error', err}
           else
             insertedIds = result.insertedIds
-            insertedIds.shift() if insertedIds[0][0] == '0'
+            insertedIds.shift() if not insertedIds?[0]?[0]
             resolve(insertedIds)
 
   insertOne = (data, opts) ->
