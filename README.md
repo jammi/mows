@@ -3,7 +3,7 @@ MOWS
 
 [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
 
-MOWS is a data synchronization event engine using nginx, express, mongodb and gearman.
+MOWS is a data synchronization event engine using nginx, koa, mongodb and gearman.
 
 It's also a project in very early development stages, so pretty much anything is subject to change.
 
