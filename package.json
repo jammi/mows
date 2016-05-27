@@ -1,7 +1,7 @@
 {
   "name": "mowsjs",
   "version": "0.0.1",
-  "description": "A data synchronization event engine using nginx, express, mongodb and gearman",
+  "description": "A data synchronization event engine using nginx, koa, mongodb and gearman",
   "keywords": [
     "JSON",
     "HTTP",
@@ -20,7 +20,7 @@
     "email": "o@rsence.org",
     "url": "https://github.com/jammi"
   },
-  "main": "./test/run-tests.coffee",
+  "main": "./test/run-tests.js",
   "files": [
     "README.md",
     "LICENSE.txt"
@@ -31,30 +31,26 @@
   ],
   "repository": "github:jammi/mows",
   "scripts": {
-    "build": "./build.coffee",
-    "test": "./test/run-tests.coffee"
+    "test": "./test/run-tests.js"
   },
   "dependencies": {
-    "body-parser": "^1.15.0",
-    "chai": "^3.5.0",
-    "coffeelint": "^1.15.7",
-    "cookie-parser": "^1.4.1",
-    "express": "^4.13.4",
     "gearmanode": "^0.9.2",
-    "mocha": "^2.4.5",
-    "mongodb": "^2.1.16",
-    "multer": "^1.1.0",
-    "randomstring": "^1.1.4",
-    "uglify-js": "^2.6.2"
+    "koa": "^2.0.0",
+    "koa-bodyparser": "^2.2.0",
+    "koa-router": "^7.0.1",
+    "mocha": "^2.5.3",
+    "mongodb": "^2.1.20",
+    "randomstring": "^1.1.5"
   },
   "devDependencies": {
-    "chai": "^3.2.0",
-    "coffee-script": ">=1.9.3",
-    "coffeelint": "^1.12.1",
+    "babel-cli": "^6.9.0",
+    "babel-eslint": "^6.0.4",
+    "chai": "^3.5.0",
+    "eslint": "^2.10.2",
     "mocha": "^2.3.2",
-    "uglify-js": ">=2.4.23"
+    "uglify-js": "^2.6.2"
   },
   "engines": {
-    "node": ">=4.1.0"
+    "node": ">=6.2.0"
   }
 }
