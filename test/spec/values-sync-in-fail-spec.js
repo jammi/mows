@@ -7,8 +7,8 @@ describe('Values sync in should fail', function() {
   // shared references for tests after this
   let session = null;
 
-  const LibValues = require('../../src/values');
-  const MongoLib = require('../../src/mongodb-util');
+  const LibValues = require('../../lib/values');
+  const MongoLib = require('../../lib/util/mongodb');
 
   beforeEach((done) => {
     MongoLib(config.mongoUrl, ['sessions', 'values'])

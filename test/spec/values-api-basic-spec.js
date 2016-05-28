@@ -9,8 +9,8 @@ describe('Values api basics work', function() {
   let values = null;
   let sesId = null;
 
-  const LibValues = require('../../src/values');
-  const MongoLib = require('../../src/mongodb-util');
+  const LibValues = require('../../lib/values');
+  const MongoLib = require('../../lib/util/mongodb');
 
   const authKey = () => {
     return `0:2:${new Date().getTime().toString(36)}`;

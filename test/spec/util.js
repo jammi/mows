@@ -6,7 +6,7 @@ module.exports = () => {
 
   const config = require('../config')().mowsConfig;
 
-  const Session = require('../../src/session');
+  const Session = require('../../lib/session');
   let session = null;
   const setSession = ses => {
     session = ses;

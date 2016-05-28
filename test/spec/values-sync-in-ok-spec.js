@@ -4,8 +4,8 @@ describe('Values sync in should succeed', function() {
 
   const {expect, config, Session, setSession} = require('./util')();
 
-  const LibValues = require('../../src/values');
-  const MongoLib = require('../../src/mongodb-util');
+  const LibValues = require('../../lib/values');
+  const MongoLib = require('../../lib/util/mongodb');
 
   // shared references for tests after this
   let session = null;

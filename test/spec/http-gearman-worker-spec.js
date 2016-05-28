@@ -4,7 +4,7 @@ const http = require('http');
 
 const expect = require('chai').expect;
 
-const Gearman = require('../../src/gearman-util');
+const Gearman = require('../../lib/util/gearman');
 
 const _conf = require('../config')();
 const config = _conf.config;

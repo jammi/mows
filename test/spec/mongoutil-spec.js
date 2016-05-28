@@ -9,7 +9,7 @@ describe('MongoUtil lib', function() {
 
   const url = config.mongoUrl;
 
-  const MongoUtil = require('../../src/mongodb-util');
+  const MongoUtil = require('../../lib/util/mongodb');
 
   const testInterface = function(it) {
     [

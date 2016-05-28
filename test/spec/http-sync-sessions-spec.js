@@ -3,11 +3,11 @@
 describe('HTTP client post session handshake tests', function() {
 
   const {expect, config} = require('./util')();
-  const HttpClient = require('../../src/http-client');
+  const HttpClient = require('../../lib/http/client');
 
-  const ClientValues = require('../../src/http-client-values');
+  const ClientValues = require('../../lib/http/client-values');
 
-  const MongoLib = require('../../src/mongodb-util');
+  const MongoLib = require('../../lib/util/mongodb');
 
   const nginxConfig = {
     host: 'localhost',

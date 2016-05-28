@@ -3,7 +3,7 @@
 const Koa = require('koa');
 const Body = require('koa-bodyparser');
 
-const Broker = require('../src/http-broker');
+const Broker = require('../lib/http/broker');
 
 module.exports = (config, mowsConfig) => {
 

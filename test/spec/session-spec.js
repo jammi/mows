@@ -12,7 +12,7 @@ describe('Session', function() {
   const dontExpectFail = util.dontExpectFail;
   const vars = util.vars;
 
-  const MongoLib = require('../../src/mongodb-util');
+  const MongoLib = require('../../lib/util/mongodb');
 
   // shared references for tests after this
   let session = null;
