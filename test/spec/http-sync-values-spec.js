@@ -96,11 +96,13 @@ describe('HTTP client post value sync tests', function() {
           .then((sesDoc) => {
             valDb
               .findById(sesDoc.values.hellotest)
-              .then((doc) => {
+              .then(doc => {
                 expect(doc.data).to.equal('testClientData');
                 done();
-              });
-          });
+              })
+              .catch(done);
+          })
+          .catch(done);
       })
       .catch(done);
   });

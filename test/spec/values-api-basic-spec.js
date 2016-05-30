@@ -17,35 +17,35 @@ describe('Values api basics work', function() {
   };
 
   beforeEach((done) => {
+    let sesDb;
+    let valDb;
+    let Values;
     MongoLib(config.mongoUrl, ['sessions', 'values'])
-      .then(([sesDb, valDb]) => {
-        let c = 2;
-        const from2 = () => {
-          c -= 1;
-          if (c === 0) {
-            Session(config)
-              .then((ses) => {
-                session = ses; // sets reference to be describe-wide
-                setSession(ses);
-                LibValues(config)
-                  .then(({Values, sync}) => {
-                    session
-                      .auth(authKey())
-                      .then(([key, ses1]) => {
-                        sesId = ses1.id;
-                        values = Values(ses1.id);
-                        done();
-                      })
-                      .catch(done);
-                  })
-                  .catch(done);
-              })
-              .catch(done);
-          }
-        };
-        valDb.remove({}).then(from2);
-        sesDb.remove({}).then(from2);
-      });
+      .then(dbs => {
+        [sesDb, valDb] = dbs;
+        return valDb.remove({});
+      }, done)
+      .then(() => {
+        return sesDb.remove({});
+      }, done)
+      .then(() => {
+        return Session(config);
+      }, done)
+      .then((ses) => {
+        session = ses; // sets reference to be describe-wide
+        setSession(ses);
+        return LibValues(config);
+      }, done)
+      .then(vapi => {
+        Values = vapi.Values;
+        return session.auth(authKey());
+      }, done)
+      .then(auth => {
+        const ses = auth[1];
+        sesId = ses.id;
+        values = Values(ses.id);
+      }, done)
+      .then(done, done);
   });
 
   afterEach(() => {
@@ -60,12 +60,9 @@ describe('Values api basics work', function() {
     return new Promise((resolve, reject) => {
       MongoLib(config.mongoUrl, 'values')
         .then(([valDb]) => {
-          valDb
-            .findOne({sid: valDb.ObjectId(sid), id})
-            .then(resolve, reject)
-            .catch(reject);
-        })
-        .catch(reject);
+          return valDb.findOne({sid: valDb.ObjectId(sid), id});
+        }, reject)
+        .then(resolve, reject);
     });
   };
 
@@ -74,63 +71,62 @@ describe('Values api basics work', function() {
       types = [types];
     }
     return new Promise((resolve, reject) => {
+      let sesObj;
+      let valueId;
       MongoLib(config.mongoUrl, 'sessions')
         .then(([sesDb]) => {
-          sesDb
-            .findById(sid)
-            .then((sesObj) => {
-              expect(sesObj).to.contain.keys(['valueSync', 'values']);
-              expect(sesObj.valueSync).to.be.an('object');
-              expect(sesObj.values).to.be.an('object');
-              const valueSync = sesObj.valueSync;
-              const valueMap = sesObj.values;
-              let valueId;
-              expect(valueSync).to.have.keys(['new', 'set', 'del']);
-              expect(valueSync.new).to.to.be.an('array');
-              expect(valueSync.set).to.to.be.an('array');
-              expect(valueSync.del).to.to.be.an('array');
-              if (!types.includes('del')) {
-                expect(valueMap).to.have.key(id);
-                expect(valueMap[id]).to.be.an('object');
-                valueId = valueMap[id];
-              }
-              if (types.includes('new')) {
-                expect(valueSync.new).to.have.length(1);
-                expect(valueSync.new[0]).to.equal(id);
-              }
-              else {
-                expect(valueSync.new).to.have.length(0);
-              }
-              if (types.includes('set')) {
-                expect(valueSync.set).to.have.length(1);
-                expect(valueSync.set[0]).to.equal(id);
-              }
-              else {
-                expect(valueSync.set).to.have.length(0);
-              }
-              if (types.includes('del')) {
-                expect(valueSync.del).to.have.length(1);
-                expect(valueSync.del[0]).to.equal(id);
-              }
-              else {
-                expect(valueSync.del).to.have.length(0);
-              }
-              findValue(sid, id)
-                .then((doc) => {
-                  if (types.includes('del')) {
-                    expect(doc).to.equal(null);
-                  }
-                  else {
-                    expect(doc).to.be.an('object');
-                    expect(doc._id).to.deep.equal(valueId);
-                  }
-                  resolve([sesObj, doc]);
-                })
-                .catch(reject);
-            })
-            .catch(reject);
-        })
-        .catch(reject);
+          return sesDb.findById(sid);
+        }, reject)
+        .then(_sesObj => {
+          sesObj = _sesObj;
+          expect(sesObj).to.contain.keys(['valueSync', 'values']);
+          expect(sesObj.valueSync).to.be.an('object');
+          expect(sesObj.values).to.be.an('object');
+          const valueSync = sesObj.valueSync;
+          const valueMap = sesObj.values;
+          expect(valueSync).to.have.keys(['new', 'set', 'del']);
+          expect(valueSync.new).to.to.be.an('array');
+          expect(valueSync.set).to.to.be.an('array');
+          expect(valueSync.del).to.to.be.an('array');
+          if (!types.includes('del')) {
+            expect(valueMap).to.have.key(id);
+            expect(valueMap[id]).to.be.an('object');
+            valueId = valueMap[id];
+          }
+          if (types.includes('new')) {
+            expect(valueSync.new).to.have.length(1);
+            expect(valueSync.new[0]).to.equal(id);
+          }
+          else {
+            expect(valueSync.new).to.have.length(0);
+          }
+          if (types.includes('set')) {
+            expect(valueSync.set).to.have.length(1);
+            expect(valueSync.set[0]).to.equal(id);
+          }
+          else {
+            expect(valueSync.set).to.have.length(0);
+          }
+          if (types.includes('del')) {
+            expect(valueSync.del).to.have.length(1);
+            expect(valueSync.del[0]).to.equal(id);
+          }
+          else {
+            expect(valueSync.del).to.have.length(0);
+          }
+          return findValue(sid, id);
+        }, reject)
+        .then(doc => {
+          if (types.includes('del')) {
+            expect(doc).to.equal(null);
+          }
+          else {
+            expect(doc).to.be.an('object');
+            expect(doc._id).to.deep.equal(valueId);
+          }
+          return doc;
+        }, reject)
+        .then(resolve, reject);
     });
   };
 
@@ -138,128 +134,116 @@ describe('Values api basics work', function() {
     values
       .create('test', null)
       .then(() => {
-        findValue(sesId, 'test')
-          .then((doc) => {
-            verifySyncHasValue(sesId, 'test', 'new')
-              .then(([sesObj, valObj]) => {
-                expect(valObj.data).to.equal(null);
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(null);
+        return verifySyncHasValue(sesId, 'test', 'new');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(null);
       })
-      .catch(done);
+      .then(done, done);
   });
 
   it('create value with data:true', function(done) {
     values
       .create('test', true)
       .then(() => {
-        findValue(sesId, 'test')
-          .then((doc) => {
-            verifySyncHasValue(sesId, 'test', 'new')
-              .then(([sesObj, valObj]) => {
-                expect(valObj.data).to.equal(true);
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(true);
+        return verifySyncHasValue(sesId, 'test', 'new');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(true);
       })
-      .catch(done);
+      .then(done, done);
   });
 
   it('create value with data:false', function(done) {
     values
       .create('test', false)
       .then(() => {
-        findValue(sesId, 'test')
-          .then((doc) => {
-            verifySyncHasValue(sesId, 'test', 'new')
-              .then(([sesObj, valObj]) => {
-                expect(valObj.data).to.equal(false);
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(false);
+        return verifySyncHasValue(sesId, 'test', 'new');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(false);
+      }, done)
+      .then(done, done);
   });
 
   it('create value with data:"string"', function(done) {
     values
       .create('test', 'string')
       .then(() => {
-        findValue(sesId, 'test')
-          .then((doc) => {
-            verifySyncHasValue(sesId, 'test', 'new')
-              .then(([sesObj, valObj]) => {
-                expect(valObj.data).to.equal('string');
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal('string');
+        return verifySyncHasValue(sesId, 'test', 'new');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal('string');
+      }, done)
+      .then(done, done);
   });
 
   it('create value with data:123456789', function(done) {
     values
       .create('test', 123456789)
       .then(() => {
-        findValue(sesId, 'test')
-          .then((doc) => {
-            verifySyncHasValue(sesId, 'test', 'new')
-              .then(([sesObj, valObj]) => {
-                expect(valObj.data).to.equal(123456789);
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(123456789);
+        return verifySyncHasValue(sesId, 'test', 'new');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(123456789);
+      }, done)
+      .then(done, done);
   });
 
   it('create value with data:9.87654321', function(done) {
     values
       .create('test', 9.87654321)
       .then(() => {
-        findValue(sesId, 'test')
-          .then((doc) => {
-            verifySyncHasValue(sesId, 'test', 'new')
-              .then(([sesObj, valObj]) => {
-                expect(valObj.data).to.equal(9.87654321);
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(9.87654321);
+        return verifySyncHasValue(sesId, 'test', 'new');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal(9.87654321);
+      }, done)
+      .then(done, done);
   });
 
   it('create value with data:[1,"2",[true,null,false],{foo:"bar",one:1,two:"2"}]', function(done) {
     values
       .create('test', [1, '2', [true, null, false], {foo: 'bar', one: 1, two: '2'}])
       .then(() => {
-        findValue(sesId, 'test')
-          .then((doc) => {
-            verifySyncHasValue(sesId, 'test', 'new')
-              .then(([sesObj, valObj]) => {
-                expect(valObj.data).to.deep.equal(
-                  [1, '2', [true, null, false], {foo: 'bar', one: 1, two: '2'}]
-                );
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.deep.equal(
+          [1, '2', [true, null, false], {foo: 'bar', one: 1, two: '2'}]
+        );
+        return verifySyncHasValue(sesId, 'test', 'new');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.deep.equal(
+          [1, '2', [true, null, false], {foo: 'bar', one: 1, two: '2'}]
+        );
+      }, done)
+      .then(done, done);
   });
 
   it('create value with data:{one:1, two:"two", "true": true, "false": false, "null": null, ' +
@@ -271,82 +255,73 @@ describe('Values api basics work', function() {
         }, arr: [1, 2, 3, 'four', true]
       })
       .then(() => {
-        findValue(sesId, 'test')
-          .then((doc) => {
-            verifySyncHasValue(sesId, 'test', 'new')
-              .then(([sesObj, valObj]) => {
-                expect(valObj.data).to.deep.equal({
-                  one: 1, two: 'two', 'true': true, 'false': false, 'null': null, obj: {
-                    foo: 'bar', arr: [1, '2', 'three', false]
-                  }, arr: [1, 2, 3, 'four', true]
-                });
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.deep.equal({
+          one: 1, two: 'two', 'true': true, 'false': false, 'null': null, obj: {
+            foo: 'bar', arr: [1, '2', 'three', false]
+          }, arr: [1, 2, 3, 'four', true]
+        });
+        return verifySyncHasValue(sesId, 'test', 'new');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.deep.equal({
+          one: 1, two: 'two', 'true': true, 'false': false, 'null': null, obj: {
+            foo: 'bar', arr: [1, '2', 'three', false]
+          }, arr: [1, 2, 3, 'four', true]
+        });
+      }, done)
+      .then(done, done);
   });
 
   it('set value', function(done) {
     values
       .create('test', 'initial')
       .then(() => {
-        values
-          .set('test', 'changed')
-          .then(() => {
-            findValue(sesId, 'test')
-              .then((doc) => {
-                verifySyncHasValue(sesId, 'test', ['new', 'set'])
-                  .then(([sesObj, valObj]) => {
-                    expect(valObj.data).to.equal('changed');
-                    done();
-                  })
-                  .catch(done);
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return values.set('test', 'changed');
+      }, done)
+      .then(() => {
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal('changed');
+        return verifySyncHasValue(sesId, 'test', ['new', 'set']);
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal('changed');
+      }, done)
+      .then(done, done);
   });
 
-  it('del value', function (done) {
+  it('del value', function(done) {
     values
       .create('test', 'initial')
       .then(() => {
-        values
-          .del('test')
-          .then(() => {
-            findValue(sesId, 'test')
-              .then((doc) => {
-                verifySyncHasValue(sesId, 'test', ['del'])
-                  .then(([sesObj, valObj]) => {
-                    expect(valObj).to.equal(null);
-                    done();
-                  })
-                  .catch(done);
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return values.del('test');
+      }, done)
+      .then(() => {
+        return findValue(sesId, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc).to.equal(null);
+        return verifySyncHasValue(sesId, 'test', ['del']);
+      }, done)
+      .then(doc => {
+        expect(doc).to.equal(null);
+      }, done)
+      .then(done, done);
   });
 
-  it('get value', function (done) {
+  it('get value', function(done) {
     values
       .create('test', 'initial')
       .then(() => {
-        values
-          .get('test')
-          .then((data) => {
-            expect(data).to.equal('initial');
-            done();
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return values.get('test');
+      }, done)
+      .then((data) => {
+        expect(data).to.equal('initial');
+      }, done)
+      .then(done, done);
   });
 });

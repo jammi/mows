@@ -4,26 +4,31 @@ describe('Values sync in should succeed', function() {
 
   const {expect, config, Session, setSession} = require('./util')();
 
-  const LibValues = require('../../lib/values');
+  const _Values = require('../../lib/values');
   const MongoLib = require('../../lib/util/mongodb');
 
   // shared references for tests after this
   let session = null;
 
   beforeEach((done) => {
+    let sesDb;
+    let valDb;
     MongoLib(config.mongoUrl, ['sessions', 'values'])
-      .then(([sesDb, valDb]) => {
-        valDb.remove({});
-        sesDb.remove({});
-        Session(config)
-          .then((ses) => {
-            session = ses; // sets reference to be describe-wide
-            setSession(ses);
-            done();
-          })
-          .catch(done);
+      .then(dbs => {
+        [sesDb, valDb] = dbs;
+        return valDb.remove({});
+      }, done)
+      .then(() => {
+        return sesDb.remove({});
+      }, done)
+      .then(() => {
+        return Session(config);
+      }, done)
+      .then(ses => {
+        session = ses; // sets reference to be describe-wide
+        setSession(ses);
       })
-      .catch(done);
+      .then(done, done);
   });
 
   afterEach(() => {
@@ -52,12 +57,12 @@ describe('Values sync in should succeed', function() {
   };
 
   it('module is a function', function(done) {
-    expect(LibValues).to.be.a('function');
+    expect(_Values).to.be.a('function');
     done();
   });
 
   it('inited module has the correct methods', function(done) {
-    LibValues(config).then(({Values, sync}) => {
+    _Values(config).then(({Values, sync}) => {
       expect(Values).to.be.a('function');
       expect(sync).to.be.a('function');
       done();
@@ -66,29 +71,28 @@ describe('Values sync in should succeed', function() {
   });
 
   it('sync no value events', function(done) {
-    LibValues(config).then(({Values, sync}) => {
-      session
-        .auth(authKey())
-        .then(([key, ses]) => {
-          sync(ses, {})
-            .then(([syncData, status]) => {
-              expect(syncData).to.deep.equal({});
-              expect(status).to.be.an('object');
-              expect(status).to.have.key('fails');
-              expect(status.fails).to.equal(0);
-              expect(status).to.not.have.key('ok');
-              expect(status).to.not.have.key('fail');
-              done();
-            })
-            .catch(done);
-        })
-        .catch(done);
-    })
-    .catch(done);
+    let sync;
+    _Values(config)
+      .then(vapi => {
+        sync = vapi.sync;
+        return session.auth(authKey());
+      }, done)
+      .then(auth => {
+        return sync(auth[1], {});
+      }, done)
+      .then(([syncData, status]) => {
+        expect(syncData).to.deep.equal({});
+        expect(status).to.be.an('object');
+        expect(status).to.have.key('fails');
+        expect(status.fails).to.equal(0);
+        expect(status).to.not.have.key('ok');
+        expect(status).to.not.have.key('fail');
+      }, done)
+      .then(done, done);
   });
 
   it('sync one "new" value event', function(done) {
-    LibValues(config).then(({Values, sync}) => {
+    _Values(config).then(({Values, sync}) => {
       session
         .auth(authKey())
         .then(([key, ses]) => {
@@ -123,7 +127,7 @@ describe('Values sync in should succeed', function() {
   });
 
   it('sync many "new" value events', function(done) {
-    LibValues(config).then(({Values, sync}) => {
+    _Values(config).then(({Values, sync}) => {
       session
         .auth(authKey())
         .then(([key, ses]) => {
@@ -156,7 +160,7 @@ describe('Values sync in should succeed', function() {
   });
 
   it('sync one "set" value event', function(done) {
-    LibValues(config).then(({Values, sync}) => {
+    _Values(config).then(({Values, sync}) => {
       session
         .auth(authKey())
         .then(([key, ses]) => {
@@ -199,7 +203,7 @@ describe('Values sync in should succeed', function() {
   });
 
   it('sync many "set" value events', function(done) {
-    LibValues(config).then(({Values, sync}) => {
+    _Values(config).then(({Values, sync}) => {
       session
         .auth(authKey())
         .then(([key, ses]) => {
@@ -277,7 +281,7 @@ describe('Values sync in should succeed', function() {
   });
 
   it('sync one "del" value event', function(done) {
-    LibValues(config).then(({Values, sync}) => {
+    _Values(config).then(({Values, sync}) => {
       session
         .auth(authKey())
         .then(([key, ses]) => {
@@ -313,7 +317,7 @@ describe('Values sync in should succeed', function() {
   });
 
   it('sync many "del" value events', function(done) {
-    LibValues(config).then(({Values, sync}) => {
+    _Values(config).then(({Values, sync}) => {
       session
         .auth(authKey())
         .then(([key, ses]) => {
@@ -373,7 +377,7 @@ describe('Values sync in should succeed', function() {
   });
 
   it('sync one "new" successed by one "set" value event for the same id', function(done) {
-    LibValues(config).then(({Values, sync}) => {
+    _Values(config).then(({Values, sync}) => {
       session
         .auth(authKey())
         .then(([key, ses]) => {
@@ -413,7 +417,7 @@ describe('Values sync in should succeed', function() {
   });
 
   it('sync many "new" successed by many "set" value events for the same ids', function(done) {
-    LibValues(config).then(({Values, sync}) => {
+    _Values(config).then(({Values, sync}) => {
       session
         .auth(authKey())
         .then(([key, ses]) => {
