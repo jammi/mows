@@ -2,62 +2,59 @@
 
 describe('Values api sync out', function() {
 
-  const {expect, config, Session, setSession} = require('./util')();
+  const {expect, config, Session} = require('./util')();
 
   // shared references for tests after this
   let sync = null;
   let session = null;
+  let Values = null;
   let values = null;
   let sesId = null;
 
-  const LibValues = require('../../lib/values');
-  const MongoLib = require('../../lib/util/mongodb');
+  const _Values = require('../../lib/values');
+  const Mongo = require('../../lib/util/mongodb');
 
   const authKey = () => {
     return `0:2:${new Date().getTime().toString(36)}`;
   };
 
-  beforeEach((done) => {
-    MongoLib(config.mongoUrl, ['sessions', 'values'])
-      .then(([sesDb, valDb]) => {
-        let c = 2;
-        const from2 = () => {
-          c -= 1;
-          if (c === 0) {
-            Session(config)
-              .then((ses) => {
-                session = ses; // sets reference to be describe-wide
-                setSession(ses);
-                LibValues(config)
-                  .then((api) => {
-                    sync = api.sync;
-                    session
-                      .auth(authKey())
-                      .then(([key, ses1]) => {
-                        sesId = ses1.id;
-                        values = api.Values(ses1.id);
-                        done();
-                      })
-                      .catch(done);
-                  })
-                  .catch(done);
-              })
-              .catch(done);
-          }
-        };
-        valDb.remove({}).then(from2);
-        sesDb.remove({}).then(from2);
-      })
-      .catch(done);
+  beforeEach(done => {
+    Mongo(config.mongoUrl, ['sessions', 'values'])
+      .then(dbs => {
+        return Promise.all(dbs.map(db => {
+          return db.remove({});
+        }));
+      }, done)
+      .then(() => {
+        return Session(config);
+      }, done)
+      .then(ses => {
+        session = ses; // sets reference to be describe-wide
+        return _Values(config);
+      }, done)
+      .then(api => {
+        sync = api.sync;
+        Values = api.Values;
+        return session.auth(authKey());
+      }, done)
+      .then(sesInfo => {
+        sesId = sesInfo[1].id;
+        values = Values(sesId);
+      }, done)
+      .then(done, done);
   });
 
   afterEach((done) => {
-    if (session) {
-      session.close();
-      setSession(null);
-      session = null;
-      done();
-    }
+    session
+      .close()
+      .then(() => {
+        sync = null;
+        session = null;
+        Values = null;
+        values = null;
+        sesId = null;
+      }, done)
+      .then(done, done);
   });
 
   const testData = () => {
@@ -79,82 +76,71 @@ describe('Values api sync out', function() {
     values
       .create('test', testData())
       .then(() => {
-        sync({id: sesId}, {})
-          .then(([syncData, status]) => {
-            expect(syncData).to.have.key('new');
-            expect(syncData).to.not.contain.keys(['set', 'del']);
-            expect(syncData.new).to.deep.equal([['test', testData()]]);
-            done();
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return sync({id: sesId}, {});
+      }, done)
+      .then(([syncData, status]) => {
+        expect(status.fails).to.equal(0);
+        expect(syncData).to.have.key('new');
+        expect(syncData).to.not.contain.keys(['set', 'del']);
+        expect(syncData.new).to.deep.equal([['test', testData()]]);
+      }, done)
+      .then(done, done);
   });
 
   it('set value', function(done) {
     values
       .create('test', 'initial')
       .then(() => {
-        sync({id: sesId}, {})
-          .then(() => {
-            values
-              .set('test', testData())
-              .then(() => {
-                sync({id: sesId}, {})
-                  .then(([syncData, status]) => {
-                    expect(syncData).to.have.key(['set']);
-                    expect(syncData).to.not.contain.keys(['new', 'del']);
-                    expect(syncData.set).to.deep.equal([['test', testData()]]);
-                    done();
-                  })
-                  .catch(done);
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return sync({id: sesId}, {});
+      }, done)
+      .then(() => {
+        return values.set('test', testData());
+      }, done)
+      .then(() => {
+        return sync({id: sesId}, {});
+      }, done)
+      .then(([syncData, status]) => {
+        expect(status.fails).to.equal(0);
+        expect(syncData).to.have.key(['set']);
+        expect(syncData).to.not.contain.keys(['new', 'del']);
+        expect(syncData.set).to.deep.equal([['test', testData()]]);
+      }, done)
+      .then(done, done);
   });
 
   it('create and set the same value', function(done) {
     values
       .create('test', 'initial')
       .then(() => {
-        values
-          .set('test', testData())
-          .then(() => {
-            sync({id: sesId}, {})
-              .then(([syncData, status]) => {
-                expect(syncData).to.have.key('new');
-                expect(syncData).to.not.contain.keys(['set', 'del']);
-                expect(syncData.new).to.deep.equal([['test', testData()]]);
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
+        return values.set('test', testData());
+      }, done)
+      .then(() => {
+        return sync({id: sesId}, {});
+      }, done)
+      .then(([syncData, status]) => {
+        expect(status.fails).to.equal(0);
+        expect(syncData).to.have.key('new');
+        expect(syncData).to.not.contain.keys(['set', 'del']);
+        expect(syncData.new).to.deep.equal([['test', testData()]]);
       })
-      .catch(done);
+      .then(done, done);
   });
 
   it('create and del the same value', function(done) {
     values
       .create('test', 'initial')
       .then(() => {
-        values
-          .del('test')
-          .then(() => {
-            sync({id: sesId}, {})
-              .then(([syncData, status]) => {
-                expect(syncData).to.have.key('del');
-                expect(syncData).to.not.contain.keys(['new', 'set']);
-                expect(syncData.del).to.deep.equal(['test']);
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return values.del('test');
+      }, done)
+      .then(() => {
+        return sync({id: sesId}, {});
+      }, done)
+      .then(([syncData, status]) => {
+        expect(status.fails).to.equal(0);
+        expect(syncData).to.have.key('del');
+        expect(syncData).to.not.contain.keys(['new', 'set']);
+        expect(syncData.del).to.deep.equal(['test']);
+      }, done)
+      .then(done, done);
   });
 });

@@ -3,17 +3,10 @@
 describe('HTTP client post session handshake tests', function() {
 
   const {expect, config} = require('./util')();
-  const HttpClient = require('../../lib/http/client');
 
+  const Client = require('../../lib/http/client');
   const ClientValues = require('../../lib/http/client-values');
-
-  const MongoLib = require('../../lib/util/mongodb');
-
-  const nginxConfig = {
-    host: 'localhost',
-    port: 9080,
-    path: '/',
-  };
+  const Mongo = require('../../lib/util/mongodb');
 
   const clientDefaults = () => {
     return {
@@ -22,316 +15,123 @@ describe('HTTP client post session handshake tests', function() {
     };
   };
 
-  const checkHandshake = (values, messages) => {
+  const clientN = port => {
+    const initValues = ClientValues(clientDefaults());
+    return Client({host: 'localhost', port, path: '/'}, initValues);
+  };
+
+  const client = port => {
+    return clientN(port).sync();
+  };
+
+  const arrFill = (len, fill) => {
+    if (typeof fill === 'undefined') {
+      fill = null;
+    }
+    return new Array(len).fill(fill);
+  };
+
+  const verifyClient = ([values, messages, session]) => {
     expect(values).to.deep.equal({});
     expect(messages).to.be.an('array');
     expect(messages).to.have.length(1);
     expect(messages[0]).to.have.key('syncStatus');
-    const status = messages[0].syncStatus;
-    expect(status.fails).to.equal(0);
+    expect(messages[0].syncStatus.fails).to.equal(0);
+    return session;
   };
 
-  beforeEach((done) => {
-    MongoLib(config.mongoUrl, ['sessions', 'values'])
-      .then(([sesDb, valDb]) => {
-        let c = 2;
-        const from2 = () => {
-          c -= 1;
-          if (c === 0) {
-            done();
-          }
-        };
-        valDb.remove({}).then(from2);
-        sesDb.remove({}).then(from2);
-      })
-      .catch(done);
+  const nTimes = (port, parallel, series, done) => {
+    return Promise.all(arrFill(parallel).map(() => {
+      let seq = 0;
+      const verifySeq = session => {
+        seq += 1;
+        expect(session.seq).to.equal(seq);
+      };
+      const _client = clientN(port);
+      return arrFill(series, _client).reduce((p, cl) => {
+        return p
+          .then(() => {
+            return cl.sync();
+          }, done)
+          .then(verifyClient, done)
+          .then(verifySeq, done);
+      }, Promise.resolve());
+    }), done)
+    .then(arr => {
+      expect(arr).to.have.length(parallel);
+    }, done);
+  };
+
+  beforeEach(done => {
+    Mongo(config.mongoUrl, ['sessions', 'values'])
+      .then(dbs => {
+        return Promise.all(dbs.map(db => {
+          return db.remove({});
+        }));
+      }, done)
+      .then(stat => {
+        expect(stat).to.have.length(2);
+      }, done)
+      .then(done, done);
+  });
+
+  arrFill(16).forEach((v, koaNum) => {
+    it(`should handshake the session through koa #${koaNum + 1}`, function(done) {
+      client(9400 + koaNum)
+        .then(verifyClient, done)
+        .then(session => {
+          expect(session.seq).to.equal(1);
+        }, done)
+        .then(done, done);
+    });
+  });
+
+  arrFill(16).forEach((v, koaNum) => {
+    it(`should handshake 50 times 5 simultaneous sessions through koa #${koaNum + 1}`, function(done) {
+      nTimes(9400 + koaNum, 5, 50, done).then(done, done);
+    });
+  });
+
+  it('should handshake 5 times 5 simultaneous sessions through koa #1..16', function(done) {
+    Promise.all(arrFill(16).map((v, koaNum) => {
+      return nTimes(9400 + koaNum, 5, 5, done);
+    }, done))
+    .then(arr => {
+      expect(arr).to.have.length(16);
+      return null;
+    }, done)
+    .then(done, done);
   });
 
   it('should handshake the session through nginx', function(done) {
-
-    const initValues = ClientValues(clientDefaults());
-
-    HttpClient(nginxConfig, initValues)
-      .sync()
-      .then(([values, messages, session]) => {
-        checkHandshake(values, messages, session);
-        done();
-      })
-      .catch(done);
+    client(9080)
+      .then(verifyClient, done)
+      .then(session => {
+        expect(session.seq).to.equal(1);
+      }, done)
+      .then(done, done);
   });
 
-  it('should handshake the session through koa #1', function(done) {
-
-    const initValues = ClientValues(clientDefaults());
-
-    HttpClient({
-      host: 'localhost',
-      port: 9400,
-      path: '/',
-    }, initValues)
-      .sync()
-      .then(([values, messages, session]) => {
-        checkHandshake(values, messages, session);
-        done();
-      })
-      .catch(done);
+  it('should handshake 50 times 5 simultaneous sessions through nginx', function(done) {
+    nTimes(9080, 5, 50, done).then(done, done);
   });
 
-  it('should handshake the session through koa #2', function(done) {
-
-    const initValues = ClientValues(clientDefaults());
-
-    HttpClient({
-      host: 'localhost',
-      port: 9401,
-      path: '/',
-    }, initValues)
-      .sync()
-      .then(([values, messages, session]) => {
-        checkHandshake(values, messages, session);
-        done();
-      })
-      .catch(done);
-  });
-
-  it('should handshake the session through koa #3', function(done) {
-
-    const initValues = ClientValues(clientDefaults());
-
-    HttpClient({
-      host: 'localhost',
-      port: 9402,
-      path: '/',
-    }, initValues)
-      .sync()
-      .then(([values, messages, session]) => {
-        checkHandshake(values, messages, session);
-        done();
-      })
-      .catch(done);
-  });
-
-  it('should handshake the session through koa #4', function(done) {
-
-    const initValues = ClientValues(clientDefaults());
-
-    HttpClient({
-      host: 'localhost',
-      port: 9403,
-      path: '/',
-    }, initValues)
-      .sync()
-      .then(([values, messages, session]) => {
-        checkHandshake(values, messages, session);
-        done();
-      })
-      .catch(done);
+  it('should handshake 5 times 50 simultaneous sessions through nginx', function(done) {
+    nTimes(9080, 50, 5, done).then(done, done);
   });
 
   it('should handshake 250 simultaneous sessions through nginx', function(done) {
-
-    let cbs = 250;
-    const cbMinus = () => {
-      cbs -= 1;
-      if (cbs === 0) {
-        done();
-      }
-    };
-
-    for (let i = 0; i < 250; i++) {
-      setImmediate(() => {
-        const initValues = ClientValues(clientDefaults());
-        HttpClient(nginxConfig, initValues)
-          .sync()
-          .then(([values, messages, session]) => {
-            expect(values).to.deep.equal({});
-            expect(messages).to.be.an('array');
-            expect(messages).to.have.length(1);
-            expect(messages[0]).to.have.key('syncStatus');
-            const status = messages[0].syncStatus;
-            expect(status.fails).to.equal(0);
-            expect(session.seq).to.equal(1);
-            cbMinus();
-          })
-          .catch(done);
-      });
-    }
-  });
-
-  for (let koaNum = 0; koaNum < 16; koaNum++) {
-    it(`should handshake 50 times 5 simultaneous sessions through koa #${koaNum + 1}`, function(done) {
-
-      let cbs = 5;
-      const cbMinus = () => {
-        cbs -= 1;
-        if (cbs === 0) {
-          done();
-        }
-      };
-
-      for (let i = 0; i < 5; i++) {
-        setImmediate(() => {
-          const initValues = ClientValues(clientDefaults());
-          let seq = 0;
-          const client = HttpClient({
-            host: 'localhost',
-            port: 9400 + koaNum,
-            path: '/',
-          }, initValues);
-          const verifyClient = ([values, messages, session]) => {
-            seq += 1;
-            expect(values).to.deep.equal({});
-            expect(messages).to.be.an('array');
-            expect(messages).to.have.length(1);
-            expect(messages[0]).to.have.key('syncStatus');
-            const status = messages[0].syncStatus;
-            expect(status.fails).to.equal(0);
-            expect(session.seq).to.equal(seq);
-            if (seq === 50) {
-              cbMinus();
-            }
-            else {
-              syncClient();
-            }
-          };
-          const syncClient = () => {
-            client.sync()
-              .then(verifyClient)
-              .catch(done);
-          };
-          syncClient();
-        });
-      }
-    });
-  }
-
-  it('should handshake 5 times 5 simultaneous sessions through koa #1..16', function(done) {
-    let cbs = 5 * 16;
-    const cbMinus = () => {
-      cbs -= 1;
-      if (cbs === 0) {
-        done();
-      }
-    };
-
-    for (let koaNum = 0; koaNum < 16; koaNum++) {
-
-      for (let i = 0; i < 5; i++) {
-        setImmediate(() => {
-          const initValues = ClientValues(clientDefaults());
-          let seq = 0;
-          const client = HttpClient({
-            host: 'localhost',
-            port: 9400 + koaNum,
-            path: '/',
-          }, initValues);
-          const verifyClient = ([values, messages, session]) => {
-            seq += 1;
-            expect(values).to.deep.equal({});
-            expect(messages).to.be.an('array');
-            expect(messages).to.have.length(1);
-            expect(messages[0]).to.have.key('syncStatus');
-            const status = messages[0].syncStatus;
-            expect(status.fails).to.equal(0);
-            expect(session.seq).to.equal(seq);
-            if (seq === 5) {
-              cbMinus();
-            }
-            else {
-              syncClient();
-            }
-          };
-          const syncClient = () => {
-            client.sync()
-              .then(verifyClient)
-              .catch(done);
-          };
-          syncClient();
-        });
-      }
-    }
-  });
-
-  it.skip('should handshake 50 times 5 simultaneous sessions through nginx', function(done) {
-
-    let cbs = 5;
-    const cbMinus = () => {
-      cbs -= 1;
-      if (cbs === 0) {
-        done();
-      }
-    };
-
-    for (let i = 0; i < 50; i++) {
-      setImmediate(() => {
-        const initValues = ClientValues(clientDefaults());
-        let seq = 0;
-        const client = HttpClient(nginxConfig, initValues);
-        const verifyClient = ([values, messages, session]) => {
-          seq += 1;
-          expect(values).to.deep.equal({});
-          expect(messages).to.be.an('array');
-          expect(messages).to.have.length(1);
-          expect(messages[0]).to.have.key('syncStatus');
-          const status = messages[0].syncStatus;
-          expect(status.fails).to.equal(0);
-          expect(session.seq).to.equal(seq);
-          if (seq === 50) {
-            cbMinus();
-          }
-          else {
-            syncClient();
-          }
-        };
-        const syncClient = () => {
-          client.sync()
-            .then(verifyClient)
-            .catch(done);
-        };
-        syncClient();
-      });
-    }
-  });
-
-  it.skip('should handshake 5 times 50 simultaneous sessions through nginx', function(done) {
-
-    let cbs = 50;
-    const cbMinus = () => {
-      cbs -= 1;
-      if (cbs === 0) {
-        done();
-      }
-    };
-
-    for (let i = 0; i < 50; i++) {
-      setImmediate(() => {
-        const initValues = ClientValues(clientDefaults());
-        let seq = 0;
-        const client = HttpClient(nginxConfig, initValues);
-        const verifyClient = ([values, messages, session]) => {
-          seq += 1;
-          expect(values).to.deep.equal({});
-          expect(messages).to.be.an('array');
-          expect(messages).to.have.length(1);
-          expect(messages[0]).to.have.key('syncStatus');
-          const status = messages[0].syncStatus;
-          expect(status.fails).to.equal(0);
-          expect(session.seq).to.equal(seq);
-          if (seq === 5) {
-            cbMinus();
-          }
-          else {
-            syncClient();
-          }
-        };
-        const syncClient = () => {
-          client.sync()
-            .then(verifyClient)
-            .catch(done);
-        };
-        syncClient();
-      });
-    }
+    Promise.all(arrFill(250).map(() => {
+      return client(9080)
+        .then(verifyClient, done)
+        .then(session => {
+          expect(session.seq).to.equal(1);
+        }, done);
+    }), done)
+    .then(arr => {
+      expect(arr).to.have.length(250);
+      done();
+    }, done);
   });
 
 });

@@ -2,49 +2,41 @@
 
 describe('Session', function() {
 
-  const util = require('./util')();
-  const expect = util.expect;
-  const config = util.config;
-  const Session = util.Session;
-  const validateKey = util.validateKey;
-  const setSession = util.setSession;
-  const expectFail = util.expectFail;
-  const dontExpectFail = util.dontExpectFail;
-  const vars = util.vars;
+  const {
+    expect, config, Session, validateKey, setSession,
+    expectFail, dontExpectFail, vars
+  } = require('./util')();
 
-  const MongoLib = require('../../lib/util/mongodb');
+  const Mongo = require('../../lib/util/mongodb');
 
   // shared references for tests after this
   let session = null;
 
   beforeEach(done => {
-    MongoLib(config.mongoUrl, ['sessions', 'values'])
-      .then(_dbs => {
-        const sesDb = _dbs[0];
-        const valDb = _dbs[1];
-        let c = 3;
-        const from3 = () => {
-          c -= 1;
-          if (c === 0) {
-            done();
-          }
-        };
-        valDb.remove({}).then(from3).catch(done);
-        sesDb.remove({}).then(from3).catch(done);
-        Session(config)
-          .then(ses => {
-            session = ses; // sets reference to be describe-wide
-            setSession(ses);
-          })
-          .then(from3)
-          .catch(done);
-      });
+    Mongo(config.mongoUrl, ['sessions', 'values'])
+      .then(dbs => {
+        return Promise.all(dbs.map(db => {
+          return db.remove({});
+        }));
+      }, done)
+      .then(() => {
+        return Session(config);
+      }, done)
+      .then(ses => {
+        setSession(ses);
+        session = ses; // sets reference to be describe-wide
+      }, done)
+      .then(done, done);
   });
 
-  afterEach(done => {
-    session.close().then(done).catch(done);
-    setSession(null);
-    session = null;
+  afterEach((done) => {
+    session
+      .close()
+      .then(() => {
+        session = null;
+        setSession(null);
+      }, done)
+      .then(done, done);
   });
 
   it('module is a function', done => {
@@ -75,32 +67,15 @@ describe('Session', function() {
 
   it('handles the session for 500 iterations', done => {
     vars.key = '0:2:klmnopqrst';
-    let c = 500;
-    const from500 = e => {
-      c -= 1;
-      if (e) {done(e);}
-      else if (c === 0) {
-        MongoLib(config.mongoUrl, 'sessions')
-          .then(_dbs => {
-            const sesDb = _dbs[0];
-            sesDb.find({})
-              .then(docs => {
-                expect(docs).to.have.length(1);
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
-      }
-      else {
-        session.auth(vars.key)
-          .then(validateKey(vars, (500 - c).toString(36), from500))
-          .catch(done);
-      }
-    };
-    session.auth(vars.key)
-      .then(validateKey(vars, '0', from500))
-      .catch(done);
+    new Array(500).fill(session.auth)
+      .reduce((p, auth, i) => {
+        return p
+          .then(() => {
+            return auth(vars.key);
+          }, done)
+          .then(validateKey(vars, i.toString(36), () => {}), done);
+      }, Promise.resolve())
+      .then(done, done);
   });
 
   it('fails with an invalid auth format #1', done => {

@@ -2,48 +2,45 @@
 
 describe('HTTP client post value sync tests', function() {
 
-  const HttpClient = require('../../lib/http/client');
-
+  const Client = require('../../lib/http/client');
   const ClientValues = require('../../lib/http/client-values');
-
-  const ServerValues = require('../../lib/values');
+  const _Values = require('../../lib/values');
 
   let sesDb = null;
   let valDb = null;
 
   const {expect, config, Session} = require('./util')();
 
-  const MongoLib = require('../../lib/util/mongodb');
+  const Mongo = require('../../lib/util/mongodb');
 
   // shared references for tests after this
   let session = null;
 
-  beforeEach((done) => {
-    MongoLib(config.mongoUrl, ['sessions', 'values'])
-      .then(([_sesDb, _valDb]) => {
-        let c = 3;
-        const from3 = () => {
-          c -= 1;
-          if (c === 0) {
-            done();
-          }
-        };
-        valDb = _valDb;
-        sesDb = _sesDb;
-        valDb.remove({}).then(from3).catch(done);
-        sesDb.remove({}).then(from3).catch(done);
-        Session(config)
-          .then((ses) => {
-            session = ses; // sets reference to be describe-wide
-          })
-          .then(from3)
-          .catch(done);
-      });
+  beforeEach(done => {
+    Mongo(config.mongoUrl, ['sessions', 'values'])
+      .then(dbs => {
+        sesDb = dbs[0];
+        valDb = dbs[1];
+        return Promise.all(dbs.map(db => {
+          return db.remove({});
+        }));
+      }, done)
+      .then(() => {
+        return Session(config);
+      }, done)
+      .then(ses => {
+        session = ses; // sets reference to be describe-wide
+      }, done)
+      .then(done, done);
   });
 
   afterEach((done) => {
-    session.close().then(done).catch(done);
-    session = null;
+    session
+      .close()
+      .then(() => {
+        session = null;
+      }, done)
+      .then(done, done);
   });
 
   const nginxConfig = () => {
@@ -62,7 +59,7 @@ describe('HTTP client post value sync tests', function() {
     if (!values) {
       values = ClientValues(clientDefaults);
     }
-    return HttpClient(nginxConfig(), values);
+    return Client(nginxConfig(), values);
   };
 
   const checkHandshake = ([val, messages, ses]) => {
@@ -71,7 +68,7 @@ describe('HTTP client post value sync tests', function() {
     expect(messages[0]).to.have.key('syncStatus');
     const status = messages[0].syncStatus;
     if (status.fail) {
-      console.log(status.fail);
+      console.dir(status.fail);
     }
     expect(status.fails).to.equal(0);
     return [val, status, ses];
@@ -85,67 +82,53 @@ describe('HTTP client post value sync tests', function() {
 
     initClient(initValues)
       .sync()
-      .then(checkHandshake)
+      .then(checkHandshake, done)
       .then(([val, status, ses]) => {
         expect(status).to.include.key('ok');
         expect(status.ok).to.have.key('new');
         expect(status.ok.new).to.have.length(1);
         expect(status.ok.new[0]).to.equal('hellotest');
-        sesDb
-          .findOne({key: ses.key})
-          .then((sesDoc) => {
-            valDb
-              .findById(sesDoc.values.hellotest)
-              .then(doc => {
-                expect(doc.data).to.equal('testClientData');
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
+        return sesDb.findOne({key: ses.key});
+      }, done)
+      .then(sesDoc => {
+        return valDb.findById(sesDoc.values.hellotest);
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal('testClientData');
       })
-      .catch(done);
+      .then(done, done);
   });
 
   it('server creates value after the handshake request', (done) => {
 
     const client = initClient();
 
-    const req1 = () => {
-      client
-        .sync()
-        .then(checkHandshake)
-        .then(([val, status, ses]) => {
-          expect(status.fails).to.equal(0);
-          expect(val).to.have.key('new');
-          expect(val.new).to.be.an('array');
-          expect(val.new).to.have.length(1);
-          expect(val.new[0]).to.deep
-            .equal(['servertest', 'this comes from the server']);
-          done();
-        })
-        .catch(done);
-    };
-
+    let _ses;
     client
       .sync()
-      .then(checkHandshake)
+      .then(checkHandshake, done)
       .then(([val, status, ses]) => {
-        sesDb
-          .findOne({key: ses.key})
-          .then((sesDoc) => {
-            ServerValues(config)
-              .then(({valuesOf}) => {
-                valuesOf({id: sesDoc._id})
-                  .create('servertest', 'this comes from the server')
-                  .then(req1)
-                  .catch(done);
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return sesDb.findOne({key: ses.key});
+      }, done)
+      .then(sesDoc => {
+        _ses = sesDoc;
+        return _Values(config);
+      }, done)
+      .then(({valuesOf}) => {
+        return valuesOf({id: _ses._id}).create('servertest', 'this comes from the server');
+      }, done)
+      .then(() => {
+        return client.sync();
+      }, done)
+      .then(checkHandshake, done)
+      .then(([val, status, ses]) => {
+        expect(status.fails).to.equal(0);
+        expect(val).to.have.key('new');
+        expect(val.new).to.be.an('array');
+        expect(val.new).to.have.length(1);
+        expect(val.new[0]).to.deep.equal(['servertest', 'this comes from the server']);
+      }, done)
+      .then(done, done);
   });
 
   it('client and server create and set each other\'s values', (done) => {
@@ -155,66 +138,52 @@ describe('HTTP client post value sync tests', function() {
     const initValues = ClientValues(valueSettings);
     const clientSettings = nginxConfig();
     clientSettings.verbose = false;
-    const client = HttpClient(clientSettings, initValues);
+    const client = Client(clientSettings, initValues);
 
-    const req1 = () => {
-      client
-        .sync()
-        .then(checkHandshake)
-        .then(([val, status, ses]) => {
-          expect(val.new).to
-            .deep.equal([['servertest', 'this comes from the server']]);
-          expect(val.set).to
-            .deep.equal([['hellotest', 'serverChangedData']]);
-          ses.values.servertest.set('client changed this');
-          req2();
-        })
-        .catch(done);
-    };
-
-    const req2 = () => {
-      client
-        .sync()
-        .then(checkHandshake)
-        .then(([val, status, ses]) => {
-          expect(status.ok.set).to.deep.equal(['servertest']);
-          sesDb
-            .findOne({key: ses.key})
-            .then((sesDoc) => {
-              valDb
-                .findById(sesDoc.values.servertest)
-                .then((valDoc) => {
-                  expect(valDoc.data).to.equal('client changed this');
-                  done();
-                })
-                .catch(done);
-            })
-            .catch(done);
-        })
-        .catch(done);
-    };
+    let sv;
+    let _ses;
 
     client
       .sync()
-      .then(checkHandshake)
+      .then(checkHandshake, done)
       .then(([val, status, ses]) => {
         expect(status.ok.new).to.deep.equal(['hellotest']);
-        sesDb
-          .findOne({key: ses.key})
-          .then((sesDoc) => {
-            ServerValues(config)
-              .then(({valuesOf}) => {
-                const sv = valuesOf({id: sesDoc._id});
-                sv.create('servertest', 'this comes from the server')
-                  .then(() => {
-                    sv.set('hellotest', 'serverChangedData').then(req1);
-                  })
-                  .catch(done);
-              })
-              .catch(done);
-          })
-          .catch(done);
-      })
-      .catch(done);
+        return sesDb.findOne({key: ses.key});
+      }, done)
+      .then((sesDoc) => {
+        _ses = sesDoc;
+        return _Values(config);
+      }, done)
+      .then(({valuesOf}) => {
+        sv = valuesOf({id: _ses._id});
+        return sv.create('servertest', 'this comes from the server');
+      }, done)
+      .then(() => {
+        return sv.set('hellotest', 'serverChangedData');
+      }, done)
+      .then(() => {
+        return client.sync();
+      }, done)
+      .then(checkHandshake, done)
+      .then(([val, status, ses]) => {
+        expect(val.new).to.deep.equal([['servertest', 'this comes from the server']]);
+        expect(val.set).to.deep.equal([['hellotest', 'serverChangedData']]);
+        ses.values.servertest.set('client changed this');
+      }, done)
+      .then(() => {
+        return client.sync();
+      }, done)
+      .then(checkHandshake, done)
+      .then(([val, status, ses]) => {
+        expect(status.ok.set).to.deep.equal(['servertest']);
+        return sesDb.findOne({key: ses.key});
+      }, done)
+      .then((sesDoc) => {
+        return valDb.findById(sesDoc.values.servertest);
+      }, done)
+      .then(valDoc => {
+        expect(valDoc.data).to.equal('client changed this');
+      }, done)
+      .then(done, done);
   });
 });

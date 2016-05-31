@@ -7,38 +7,34 @@ describe('Values sync in should fail', function() {
   // shared references for tests after this
   let session = null;
 
-  const LibValues = require('../../lib/values');
-  const MongoLib = require('../../lib/util/mongodb');
+  const _Values = require('../../lib/values');
+  const Mongo = require('../../lib/util/mongodb');
 
-  beforeEach((done) => {
-    MongoLib(config.mongoUrl, ['sessions', 'values'])
-      .then(([sesDb, valDb]) => {
-        let c = 3;
-        const from3 = () => {
-          c -= 1;
-          if (c === 0) {
-            done();
-          }
-        };
-        valDb.remove({}).then(from3);
-        sesDb.remove({}).then(from3);
-        Session(config)
-          .then((ses) => {
-            session = ses; // sets reference to be describe-wide
-            setSession(ses);
-          })
-          .then(from3)
-          .catch(done);
-      })
-      .catch(done);
+  beforeEach(done => {
+    Mongo(config.mongoUrl, ['sessions', 'values'])
+      .then(dbs => {
+        return Promise.all(dbs.map(db => {
+          return db.remove({});
+        }));
+      }, done)
+      .then(() => {
+        return Session(config);
+      }, done)
+      .then(ses => {
+        setSession(ses);
+        session = ses; // sets reference to be describe-wide
+      }, done)
+      .then(done, done);
   });
 
-  afterEach(() => {
-    if (session) {
-      session.close();
-      setSession(null);
-      session = null;
-    }
+  afterEach((done) => {
+    session
+      .close()
+      .then(() => {
+        session = null;
+        setSession(null);
+      }, done)
+      .then(done, done);
   });
 
   const authKey = () => {
@@ -46,144 +42,138 @@ describe('Values sync in should fail', function() {
   };
 
   const findValue = (sid, id) => {
-    return new Promise((resolve, reject) => {
-      MongoLib(config.mongoUrl, 'values')
-        .then(([valDb]) => {
-          valDb
-            .findOne({sid: valDb.ObjectId(sid), id})
-            .then(resolve, reject)
-            .catch(reject);
-        })
-        .catch(reject);
-    });
+    return Mongo(config.mongoUrl, 'values')
+      .then(([valDb]) => {
+        return valDb.findOne({sid: valDb.ObjectId(sid), id});
+      });
   };
 
   it('module is a function', function(done) {
-    expect(LibValues).to.be.a('function');
+    expect(_Values).to.be.a('function');
     done();
   });
 
   it('inited module has the correct methods', function(done) {
-    LibValues(config).then(({Values, sync}) => {
-      expect(Values).to.be.a('function');
-      expect(sync).to.be.a('function');
-      done();
-    })
-    .catch(done);
+    _Values(config)
+      .then(({Values, sync}) => {
+        expect(Values).to.be.a('function');
+        expect(sync).to.be.a('function');
+      }, done)
+      .then(done, done);
   });
 
   it('new values with duplicate ids #1', function(done) {
-    LibValues(config).then(({Values, sync}) => {
-      session
-        .auth(authKey())
-        .then(([key, ses]) => {
-          sync(ses, {
-            'new': [
-              ['test', 'testData'],
-              ['test', 'otherData'],
-            ],
-          })
-          .then(([syncData, status]) => {
-            expect(status.fails).to.equal(1);
-            expect(status.ok.new).to.have.length(1);
-            expect(status.ok.new[0]).to.equal('test');
-            expect(Object.keys(status.fail.new)).to.have.length(1);
-            expect(status.fail.new.test.code).to.equal(-17);
-            findValue(ses.id, 'test')
-              .then((doc) => {
-                expect(doc.data).to.equal('testData');
-                done();
-              })
-              .catch(done);
-          })
-          .catch(done);
-        })
-        .catch(done);
-    })
-    .catch(done);
+    let _ses;
+    let _sync;
+    _Values(config)
+      .then(({sync}) => {
+        _sync = sync;
+        return session.auth(authKey());
+      }, done)
+      .then(([key, ses]) => {
+        _ses = ses;
+        return _sync(ses, {
+          'new': [
+            ['test', 'testData'],
+            ['test', 'otherData'],
+          ],
+        });
+      }, done)
+      .then(([syncData, status]) => {
+        expect(status.fails).to.equal(1);
+        expect(status.ok.new).to.have.length(1);
+        expect(status.ok.new[0]).to.equal('test');
+        expect(Object.keys(status.fail.new)).to.have.length(1);
+        expect(status.fail.new.test.code).to.equal(-17);
+        return findValue(_ses.id, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal('testData');
+      }, done)
+      .then(done, done);
   });
 
   it('new values with duplicate ids #2', function(done) {
-    LibValues(config).then(({Values, sync}) => {
-      session
-        .auth(authKey())
-        .then(([key, ses]) => {
-          sync(ses, {'new': [['test', 'testData']]})
-            .then(() => {
-              sync(ses, {'new': [['test', 'otherData']]})
-                .then(([syncData, status]) => {
-                  expect(status.fails).to.equal(1);
-                  expect(Object.keys(status.fail.new)).to.have.length(1);
-                  expect(status.fail.new.test.code).to.equal(-4);
-                  findValue(ses.id, 'test')
-                    .then((doc) => {
-                      expect(doc.data).to.equal('testData');
-                      done();
-                    })
-                    .catch(done);
-                })
-                .catch(done);
-            })
-            .catch(done);
-        })
-        .catch(done);
-    });
+    let _sync;
+    let _ses;
+    _Values(config)
+      .then(({sync}) => {
+        _sync = sync;
+        return session.auth(authKey());
+      }, done)
+      .then(([key, ses]) => {
+        _ses = ses;
+        return _sync(ses, {'new': [['test', 'testData']]});
+      }, done)
+      .then(() => {
+        return _sync(_ses, {'new': [['test', 'otherData']]});
+      }, done)
+      .then(([syncData, status]) => {
+        expect(status.fails).to.equal(1);
+        expect(Object.keys(status.fail.new)).to.have.length(1);
+        expect(status.fail.new.test.code).to.equal(-4);
+        return findValue(_ses.id, 'test');
+      }, done)
+      .then(doc => {
+        expect(doc.data).to.equal('testData');
+      }, done)
+      .then(done, done);
   });
 
   it('set values with duplicate ids', function(done) {
-    LibValues(config).then(({Values, sync}) => {
-      session
-        .auth(authKey())
-        .then(([key, ses]) => {
-          sync(ses, {'new': [['test', 'testData']]})
-            .then(() => {
-              sync(ses, {'set': [
-                ['test', 'otherData'],
-                ['test', 'otherData2'],
-              ]})
-                .then(([syncData, status]) => {
-                  expect(status.fails).to.equal(1);
-                  expect(Object.keys(status.fail.set)).to.have.length(1);
-                  expect(status.fail.set.test.code).to.equal(-18);
-                  findValue(ses.id, 'test')
-                    .then((doc) => {
-                      expect(doc.data).to.equal('otherData');
-                      done();
-                    })
-                    .catch(done);
-                })
-                .catch(done);
-            })
-            .catch(done);
-        })
-        .catch(done);
-    });
+    let _sync;
+    let _ses;
+    _Values(config)
+      .then(({sync}) => {
+        _sync = sync;
+        return session.auth(authKey());
+      }, done)
+      .then(([key, ses]) => {
+        _ses = ses;
+        return _sync(ses, {'new': [['test', 'testData']]});
+      }, done)
+      .then(() => {
+        return _sync(_ses, {'set': [
+          ['test', 'otherData'],
+          ['test', 'otherData2'],
+        ]});
+      }, done)
+      .then(([syncData, status]) => {
+        expect(status.fails).to.equal(1);
+        expect(Object.keys(status.fail.set)).to.have.length(1);
+        expect(status.fail.set.test.code).to.equal(-18);
+        return findValue(_ses.id, 'test');
+      }, done)
+      .then((doc) => {
+        expect(doc.data).to.equal('otherData');
+      }, done)
+      .then(done, done);
   });
 
   it('del values with duplicate ids', function(done) {
-    LibValues(config).then(({Values, sync}) => {
-      session
-        .auth(authKey())
-        .then(([key, ses]) => {
-          sync(ses, {'new': [['test', 'testData']]})
-            .then(() => {
-              sync(ses, {'del': ['test', 'test']})
-                .then(([syncData, status]) => {
-                  expect(status.fails).to.equal(1);
-                  expect(Object.keys(status.fail.del)).to.have.length(1);
-                  expect(status.fail.del.test.code).to.equal(-19);
-                  findValue(ses.id, 'test')
-                    .then((doc) => {
-                      expect(doc).to.equal(null);
-                      done();
-                    })
-                    .catch(done);
-                })
-                .catch(done);
-            })
-            .catch(done);
-        })
-        .catch(done);
-    });
+    let _sync;
+    let _ses;
+    _Values(config)
+      .then(({sync}) => {
+        _sync = sync;
+        return session.auth(authKey());
+      }, done)
+      .then(([key, ses]) => {
+        _ses = ses;
+        return _sync(ses, {'new': [['test', 'testData']]});
+      }, done)
+      .then(() => {
+        return _sync(_ses, {'del': ['test', 'test']});
+      }, done)
+      .then(([syncData, status]) => {
+        expect(status.fails).to.equal(1);
+        expect(Object.keys(status.fail.del)).to.have.length(1);
+        expect(status.fail.del.test.code).to.equal(-19);
+        return findValue(_ses.id, 'test');
+      }, done)
+      .then((doc) => {
+        expect(doc).to.equal(null);
+      }, done)
+      .then(done, done);
   });
 });
