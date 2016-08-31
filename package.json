@@ -26,8 +26,7 @@
     "LICENSE.txt"
   ],
   "directories": [
-    "src",
-    "test"
+    "lib",
   ],
   "repository": "github:jammi/mows",
   "scripts": {
