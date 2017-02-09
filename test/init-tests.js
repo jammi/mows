@@ -1,4 +1,3 @@
-'use strict';
 
 const _cp = require('child_process');
 const exec = _cp.execSync;

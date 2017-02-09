@@ -1,4 +1,3 @@
-'use strict';
 
 const servers = require('../config')().config.gearmanServers;
 const expect = require('chai').expect;

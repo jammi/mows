@@ -1,4 +1,3 @@
-'use strict';
 
 describe('HTTP client post value sync tests', function() {
 

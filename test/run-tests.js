@@ -1,5 +1,4 @@
 #!/usr/bin/env node --harmony
-'use strict';
 
 const conf = require('./config')();
 const config = conf.config;

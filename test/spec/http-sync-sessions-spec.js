@@ -1,4 +1,3 @@
-'use strict';
 
 describe('HTTP client post session handshake tests', function() {
 

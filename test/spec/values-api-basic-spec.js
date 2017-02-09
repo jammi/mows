@@ -1,4 +1,3 @@
-'use strict';
 
 describe('Values api basics work', function() {
 

@@ -1,4 +1,3 @@
-'use strict';
 
 describe('Values sync in should fail', function() {
 

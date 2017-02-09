@@ -1,4 +1,3 @@
-'use strict';
 
 describe('Values api sync out', function() {
 
