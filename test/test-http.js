@@ -1,38 +1,39 @@
-
+#!/usr/bin/env node
+console.log('Starting Mows test server..');
 const Koa = require('koa');
 const Body = require('koa-bodyparser');
 
 const Broker = require('../lib/http/broker');
 
-module.exports = (config, mowsConfig) => {
+const {mowsConfig} = require('./config')();
 
-  const apps = [];
+// console.log('argv:', process.argv)
 
-  for (let i = 0; i < config.numHttp; i++) {
-    const host = '127.0.0.1';
-    const port = config.httpBase + i;
-    Broker(mowsConfig)
-      .then(broker => {
-        const app = new Koa();
-        app.proxy = true;
-        app.use(Body({
-          strict: true,
-          onerror: (err, ctx) => {
-            ctx.throw(`body parse error of ${ctx.body} ${err}; ${err.body}`, 422);
-          }
-        }));
-        app.use(broker.middleware());
-        return app;
-      })
-      .then(app => {
-        const server = app.listen(port, host, () => {
-          console.log(`Test server listening on http://${host}:${port}`);
-        });
-        apps.push({app, server});
-      })
-      .catch(err => {
-        console.error('Unable to start broker:', err);
-      });
-  }
-  return apps;
-};
+const host = process.argv[2];
+const port = parseInt(process.argv[3], 10);
+
+// console.log({host, port})
+
+Broker(mowsConfig)
+  .then(broker => {
+    const app = new Koa();
+    app.proxy = true;
+    app.use(Body({
+      strict: true,
+      onerror: (err, ctx) => {
+        ctx.throw(`body parse error of ${ctx.body} ${err}; ${err.body}`, 422);
+      }
+    }));
+    app.use(broker.middleware());
+    return app;
+  })
+  .then(app => {
+    const server = app.listen(port, host, () => {
+      console.log(`Mows server listening on http://${host}:${port}`);
+    });
+  })
+  .catch(err => {
+    console.error('Unable to start broker:', err);
+  });
+
+setInterval(() => {}, Number.POSITIVE_INFINITY);

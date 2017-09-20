@@ -4,21 +4,10 @@ const exec = _cp.execSync;
 const spawn = _cp.spawn;
 const fs = require('fs');
 const mkdir = fs.mkdirSync;
-
-// Create directories for test data (pid files, databases, logs and so forth)
-const initTestData = (config) => {
-  exec(`rm -rf ${config.cwd}/test-data`);
-  mkdir(`${config.cwd}/test-data`);
-  for (let n of ['mongodb', 'nginx', 'gearman']) {
-    mkdir(`${config.cwd}/test-data/${n}`);
-  }
-  for (let num = 0; num < config.numMongo; num++) {
-    mkdir(`${config.cwd}/test-data/mongodb/${num}`);
-  }
-};
+const exists = fs.existsSync;
 
 // Finds out full path of given executable
-const execPath = (execName) => {
+const execPath = execName => {
   return exec(`which ${execName}`).toString('utf8').slice(0, -1);
 };
 
@@ -36,10 +25,48 @@ const term = {
   * @arg {Object} config - Configuration object, see `config.js`
   * @arg {Object} isRunning - Status register of running processes
   * @arg {Object} childProcs - Status register of child processes
+  * @arg {String} baseDir - The base directory for storing the data
   *
   * @returns {Object} - Processes by name
   **/
-module.exports = (config, isRunning, childProcs) => {
+module.exports = (config, isRunning, childProcs, baseDir) => {
+
+  if (!baseDir) {
+    baseDir = `${config.cwd}/test-data`;
+  }
+
+  // Create directories for test data (pid files, databases, logs and so forth)
+  const initDataPaths = rmFirst => {
+    if (rmFirst) {
+      exec(`rm -rf ${baseDir}`);
+    }
+    if (!exists(baseDir)) {
+      mkdir(baseDir);
+    }
+    // ['mongodb', 'nginx', 'rabbitmq'].forEach(n => {
+    ['nginx'].forEach(n => {
+      const serverDir = `${baseDir}/${n}`;
+      if (!exists(serverDir)) {
+        mkdir(serverDir);
+      }
+    });
+    // for (let num = 0; num < config.mongoCount; num++) {
+    //   const mongoDir = `${baseDir}/mongodb/${num}`;
+    //   if (!exists(mongoDir)) {
+    //     mkdir(mongoDir);
+    //   }
+    // }
+    // for (let num = 0; num < config.rabbitmqCount; num++) {
+    //   const rabbitDir = `${baseDir}/rabbitmq/${num}`;
+    //   if (!exists(rabbitDir)) {
+    //     mkdir(rabbitDir);
+    //   }
+    //   const logDir = `${rabbitDir}/logs`;
+    //   if (!exists(logDir)) {
+    //     mkdir(logDir);
+    //   }
+    // }
+  };
 
   /**
     * Spawns a process
@@ -53,10 +80,12 @@ module.exports = (config, isRunning, childProcs) => {
     *
     *  @returns {Object} - A proc reference to the process started
     **/
-  const launchProc = (procName, procNum, bin, args, startId, logId) => {
+  const launchProc = (procName, procNum, bin, args, startId, logId, env) => {
 
     // Handle to the spawned process:
-    const proc = spawn(bin, args);
+    const proc = env ?
+      spawn(bin, args, {env}) :
+      spawn(bin, args);
 
     // Construct logId if it's not given, then apply coloring to it and then normalize the rest to default colors:
     if (!logId) {
@@ -67,6 +96,7 @@ module.exports = (config, isRunning, childProcs) => {
     // Logging decorator of the process stdout
     proc.stdout.on('data', data => {
       data = data.toString('utf8');
+      // console.log(`${term.infoIcon}${logId}: ${data}`);
       if (isRunning[procName][procNum]) {
         console.log(`${term.infoIcon}${logId}: ${data}`);
       }
@@ -106,24 +136,38 @@ module.exports = (config, isRunning, childProcs) => {
 
   };
   const launchMongod = () => {
+    return;
     const bin = execPath('mongod');
     const args =
-      `--master --quiet --port ${config.mongoBase} --noauth --dbpath ${config.cwd}/test-data/mongodb/0`
+      `--master --quiet --port ${config.mongoBase} --noauth --dbpath ${baseDir}/mongodb/0`
       .split(' ');
     const startId = `[initandlisten] waiting for connections on port ${config.mongoBase}`;
     return [launchProc('mongod', 0, bin, args, startId)];
   };
 
-  const launchGearmand = () => {
-    const bin = execPath('gearmand');
-    const startId = false;
+  const launchRabbitMQ = () => {
+    return;
+    const bin = execPath('rabbitmq-server');
+    const startId = ' completed with 10 plugins.';
     const procs = [];
-    for (let procNum = 0; procNum < config.numGearman; procNum++) {
-      const logId = `gearman-${procNum}`;
-      const logPath = `${config.cwd}/test-data/gearman/${logId}.log`;
-      const args = `-l ${logPath} -t 8 --port ${config.gearmanBase + procNum}`.split(' ');
+    for (let procNum = 0; procNum < config.rabbitmqCount; procNum++) {
+      const logId = `rabbitmq-${procNum}`;
+      const basePath = `${baseDir}/rabbitmq`;
+      const dbPath = `${basePath}/${procNum}`;
+      const pidPath = `${dbPath}/pid`;
+      const logPath = `${dbPath}/logs`;
+      const env = {
+        HOME: basePath,
+        RABBITMQ_PID_FILE: pidPath,
+        RABBITMQ_MNESIA_BASE: dbPath,
+        RABBITMQ_NODENAME: logId,
+        RABBITMQ_LOG_BASE: logPath,
+        RABBITMQ_NODE_IP_ADDRESS: '127.0.0.1',
+        RABBITMQ_NODE_PORT: config.rabbitmqBase + procNum
+      };
+      const args = []; // ['-detached'];
       procs.push(
-        launchProc('gearmand', procNum, bin, args, startId, logId)
+        launchProc('rabbitmq', procNum, bin, args, startId, logId, env)
       );
     }
     return procs;
@@ -131,15 +175,15 @@ module.exports = (config, isRunning, childProcs) => {
 
   const launchNginx = () => {
     const proxyTarget = [];
-    for (let i = 0; i < config.numHttp - 1; i++) {
-      proxyTarget.push(`          server localhost:${config.httpBase + i};`);
+    for (let i = 0; i < config.mowsCount - 1; i++) {
+      proxyTarget.push(`          server localhost:${config.mowsBase + i};`);
     }
     const conf = `
-      # auto-generated nginx config for http-mongo-gearman testing
-      worker_processes ${config.numNginx};
+      # auto-generated nginx config for mows testing
+      worker_processes ${config.nginxCount};
       daemon off;
       events {
-        worker_connections ${1024 * config.numNginx};
+        worker_connections ${1024 * config.nginxCount};
       }
       http {
         upstream test {
@@ -154,22 +198,36 @@ ${proxyTarget.join('\n')}
           }
         }
       }
-      pid ${config.cwd}/nginx.pid;
+      pid ${baseDir}/nginx/nginx.pid;
       `.replace(/\n\ \ \ \ \ \ /g, '\n');
 
-    const confPath = `${config.cwd}/test-data/nginx/nginx.conf`;
-    fs.writeFileSync(confPath, conf);
+    const confPath = `${baseDir}/nginx/nginx.conf`;
+    if (!exists(confPath)) {
+      fs.writeFileSync(confPath, conf);
+    }
 
     const bin = execPath('nginx');
     const args = `-c ${confPath}`.split(' ');
     return [launchProc('nginx', 0, bin, args)];
   };
 
-  initTestData(config);
+  const launchMows = () => {
+    const procs = [];
+    for (let i = 0; i < config.mowsCount; i++) {
+      const host = '127.0.0.1';
+      const port = config.mowsBase + i;
+      const bin = execPath('node');
+      const args = [`${config.cwd}/test/test-http.js`, host, port];
+      const logId = `mows${i}`;
+      const startId = `Mows server listening on http://${host}:${port}`;
+      procs.push(
+        launchProc('mows', i, bin, args, startId, logId)
+      );
+    }
+    return procs;
+  };
 
   return {
-    mongod: launchMongod(),
-    gearmand: launchGearmand(),
-    nginx: launchNginx(),
+    initDataPaths, launchMongod, launchRabbitMQ, launchNginx, launchMows
   };
 };

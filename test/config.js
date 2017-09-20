@@ -1,42 +1,45 @@
 
-module.exports = function exports() {
+module.exports = () => {
 
-  const config = (function config(basePort) {
+  const config = (basePort => {
     const _conf = {
       basePort: basePort,
 
       cwd: process.cwd(),
 
-      numMongo: 1,
-      mongoBase: basePort + 100,
+      // mongoCount: 1,
+      // mongoBase: basePort + 100,
 
-      numNginx: 8,
+      nginxCount: 8,
       nginxBase: basePort + 80,
 
-      numGearman: 2,
-      gearmanBase: basePort + 300,
+      // rabbitmqCount: 1,
+      // rabbitmqBase: basePort + 300,
 
-      numHttp: 16,
-      httpBase: basePort + 400,
+      amqpServers: ['amqp://127.0.0.1/'],
 
-      numTestClients: 16,
+      mowsCount: 16,
+      mowsBase: basePort + 400,
+
+      testClientCount: 16,
     };
 
-    _conf.gearmanServers = (() => {
-      const servers = [];
-      for (let i = 0; i < _conf.numGearman; i++) {
-        const port = _conf.gearmanBase + i;
-        servers.push({host: '127.0.0.1', port});
-      }
-      return servers;
-    })();
+    // _conf.amqpServers = (() => {
+    //   const servers = [];
+    //   for (let i = 0; i < _conf.rabbitmqCount; i++) {
+    //     const port = _conf.rabbitmqBase + i;
+    //     servers.push(`amqp://127.0.0.1:${port}`);
+    //   }
+    //   return servers;
+    // })();
 
     return _conf;
   })(9000);
 
   const mowsConfig = {
 
-    mongoUrl: `mongodb://127.0.0.1:${config.mongoBase}/mongotest`,
+    // mongoUrl: `mongodb://127.0.0.1:${config.mongoBase}/mongotest`,
+    mongoUrl: 'mongodb://127.0.0.1/mongotest',
 
     // Session timeout in seconds
     timeout: 15 * 60,
@@ -50,7 +53,7 @@ module.exports = function exports() {
     // random part of the key.
     keyLength: 40,
 
-    gearmanServers: config.gearmanServers,
+    amqpServers: config.amqpServers,
 
   };
 
@@ -58,18 +61,18 @@ module.exports = function exports() {
     config: config,
     mowsConfig: mowsConfig,
     isRunning: {
-      mongod: [],
-      gearmand: [],
+      // mongod: [],
+      // rabbitmq: [],
       nginx: [],
-      http: [],
+      mows: [],
       clients: [],
     },
 
     childProcs: {
-      mongod: [],
-      gearmand: [],
+      // mongod: [],
+      // rabbitmq: [],
       nginx: [],
-      http: [],
+      mows: [],
       clients: [],
     },
   };

@@ -3,7 +3,7 @@ MOWS
 
 [![experimental](http://badges.github.io/stability-badges/dist/experimental.svg)](http://github.com/badges/stability-badges)
 
-MOWS is a data synchronization event engine using nginx, koa, mongodb and gearman.
+MOWS is a data synchronization event engine using nginx, Koa, MongoDB and RabbitMQ.
 
 It's also a project in very early development stages, so pretty much anything is subject to change. One of the things are its name.
 
@@ -16,7 +16,7 @@ LICENSE
 INSTALL
 -------
 
-First install nginx, mongodb, gearman and nodejs.
+First install nginx, mongodb, rabbitmq and nodejs.
 
 Then checkout this repository (later, you'll be ably to just run npm install -g mowsjs).
 

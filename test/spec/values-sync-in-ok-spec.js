@@ -8,49 +8,44 @@ describe('Values sync in should succeed', function() {
 
   // shared references for tests after this
   let session = null;
+  const setSession = ses => {
+    session = ses;
+  };
+  const unsetSession = () => {
+    session = null;
+  };
 
   beforeEach(done => {
     Mongo(config.mongoUrl, ['sessions', 'values'])
-      .then(dbs => {
-        return Promise.all(dbs.map(db => {
-          return db.remove({});
-        }));
-      }, done)
-      .then(() => {
-        return Session(config);
-      }, done)
-      .then(ses => {
-        session = ses; // sets reference to be describe-wide
-      }, done)
-      .then(done, done);
+      .then(dbs => Promise.all(dbs.map(db => db.remove({}))))
+      .then(() => Session(config))
+      .then(setSession)
+      .then(done)
+      .catch(done);
   });
 
-  afterEach((done) => {
+  afterEach(done => {
     session
       .close()
-      .then(() => {
-        session = null;
-      }, done)
-      .then(done, done);
+      .then(unsetSession)
+      .then(done)
+      .catch(done);
   });
 
-  const authKey = () => {
-    return `0:2:${new Date().getTime().toString(36)}`;
-  };
+  const authKey = () => `0:2:${new Date().getTime().toString(36)}`;
 
-  const findValue = (sid, id) => {
-    return Mongo(config.mongoUrl, 'values')
-      .then(([valDb]) => {
-        return valDb.findOne({sid: valDb.ObjectId(sid), id});
-      });
-  };
+  const findValue = (sid, id) =>
+    Mongo(config.mongoUrl, 'values')
+      .then(([valDb]) =>
+        valDb.findOne({sid: valDb.ObjectId(sid), id})
+      );
 
-  it('module is a function', function(done) {
+  it('module is a function', done => {
     expect(_Values).to.be.a('function');
     done();
   });
 
-  it('inited module has the correct methods', function(done) {
+  it('inited module has the correct methods', done => {
     _Values(config)
       .then(({Values, sync}) => {
         expect(Values).to.be.a('function');
@@ -59,7 +54,7 @@ describe('Values sync in should succeed', function() {
       .then(done, done);
   });
 
-  it('sync no value events', function(done) {
+  it('sync no value events', done => {
     let sync;
     _Values(config)
       .then(vapi => {
@@ -80,7 +75,7 @@ describe('Values sync in should succeed', function() {
       .then(done, done);
   });
 
-  it('sync one "new" value event', function(done) {
+  it('sync one "new" value event', done => {
     let _sync;
     let _ses;
     const createdAfter = new Date().getTime();
@@ -115,7 +110,7 @@ describe('Values sync in should succeed', function() {
       .then(done, done);
   });
 
-  it('sync many "new" value events', function(done) {
+  it('sync many "new" value events', done => {
     let _sync;
     _Values(config)
       .then(({sync}) => {
@@ -147,7 +142,7 @@ describe('Values sync in should succeed', function() {
       .then(done, done);
   });
 
-  it('sync one "set" value event', function(done) {
+  it('sync one "set" value event', done => {
     let _sync;
     let _ses;
     let createdBefore;
@@ -190,7 +185,7 @@ describe('Values sync in should succeed', function() {
       .then(done, done);
   });
 
-  it('sync many "set" value events', function(done) {
+  it('sync many "set" value events', done => {
     let _sync;
     let _ses;
     let createdBefore;
@@ -266,7 +261,7 @@ describe('Values sync in should succeed', function() {
 
   });
 
-  it('sync one "del" value event', function(done) {
+  it('sync one "del" value event', done => {
     let _sync;
     let _ses;
     _Values(config)
@@ -298,7 +293,7 @@ describe('Values sync in should succeed', function() {
       .then(done, done);
   });
 
-  it('sync many "del" value events', function(done) {
+  it('sync many "del" value events', done => {
     let _sync;
     let _ses;
     _Values(config)
@@ -351,7 +346,7 @@ describe('Values sync in should succeed', function() {
       .then(done, done);
   });
 
-  it('sync one "new" successed by one "set" value event for the same id', function(done) {
+  it('sync one "new" successed by one "set" value event for the same id', done => {
     let _sync;
     let _ses;
     let createdAfter;
@@ -393,7 +388,7 @@ describe('Values sync in should succeed', function() {
       .then(done, done);
   });
 
-  it('sync many "new" successed by many "set" value events for the same ids', function(done) {
+  it('sync many "new" successed by many "set" value events for the same ids', done => {
     let _sync;
     let _ses;
     let createdAfter;
